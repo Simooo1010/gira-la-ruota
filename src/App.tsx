@@ -1,6 +1,8 @@
-import React, { useState, useReducer, useEffect, createContext, useContext } from 'react';
+import React, { useState, useReducer, useEffect, createContext, useContext, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LifeBuoy } from 'lucide-react';
+import { LifeBuoy, Users, Copy, Check, LogOut } from 'lucide-react';
+import { ref, onValue, set, get, remove } from "firebase/database";
+import { db } from './firebase';
 
 // ─── DESIGN TOKENS (Electric Arena) ─────────────────────────────────────────
 
@@ -95,6 +97,19 @@ const TRANSLATIONS = {
     close: "Chiudi",
     unlockBtn: "Sblocca",
     noConsonantsWarning: "⚠️ Non ci sono più consonanti! Compra una vocale o risolvi.",
+    online: "🌐 Online",
+    createRoom: "Crea Stanza",
+    joinRoom: "Entra in Stanza",
+    roomCode: "Codice Stanza",
+    enterRoomCode: "Inserisci codice...",
+    connect: "Connetti",
+    waitingHost: "In attesa dell'host...",
+    waitingPlayers: "In attesa di altri giocatori...",
+    leaveRoom: "Esci dalla stanza",
+    roomNotFound: "Stanza non trovata o già avviata",
+    roomFull: "La stanza è piena (max 3)",
+    copyCode: "Copia Codice",
+    copied: "Copiato!",
   },
   en: {
     selectLanguage: "Choose Language",
@@ -154,6 +169,19 @@ const TRANSLATIONS = {
     close: "Close",
     unlockBtn: "Unlock",
     noConsonantsWarning: "⚠️ No consonants left! Buy a vowel or solve.",
+    online: "🌐 Online",
+    createRoom: "Create Room",
+    joinRoom: "Join Room",
+    roomCode: "Room Code",
+    enterRoomCode: "Enter code...",
+    connect: "Connect",
+    waitingHost: "Waiting for host...",
+    waitingPlayers: "Waiting for players...",
+    leaveRoom: "Leave Room",
+    roomNotFound: "Room not found or already started",
+    roomFull: "Room is full (max 3)",
+    copyCode: "Copy Code",
+    copied: "Copied!",
   },
   es: {
     selectLanguage: "Selecciona el idioma",
@@ -213,6 +241,19 @@ const TRANSLATIONS = {
     close: "Cerrar",
     unlockBtn: "Desbloq",
     noConsonantsWarning: "⚠️ ¡No quedan consonantes! Compra una vocal o resuelve.",
+    online: "🌐 Online",
+    createRoom: "Crear Sala",
+    joinRoom: "Unirse a Sala",
+    roomCode: "Código de Sala",
+    enterRoomCode: "Ingresar código...",
+    connect: "Conectar",
+    waitingHost: "Esperando al anfitrión...",
+    waitingPlayers: "Esperando jugadores...",
+    leaveRoom: "Salir de la Sala",
+    roomNotFound: "Sala no encontrada o ya iniciada",
+    roomFull: "La sala está llena (máx 3)",
+    copyCode: "Copiar Código",
+    copied: "¡Copiado!",
   },
   fr: {
     selectLanguage: "Choisir la langue",
@@ -272,6 +313,19 @@ const TRANSLATIONS = {
     close: "Fermer",
     unlockBtn: "Débloq",
     noConsonantsWarning: "⚠️ Plus de consonne ! Achetez une voyelle ou résolvez.",
+    online: "🌐 En Ligne",
+    createRoom: "Créer une Salle",
+    joinRoom: "Rejoindre une Salle",
+    roomCode: "Code de la Salle",
+    enterRoomCode: "Entrer le code...",
+    connect: "Rejoindre",
+    waitingHost: "En attente de l'hôte...",
+    waitingPlayers: "En attente de joueurs...",
+    leaveRoom: "Quitter la Salle",
+    roomNotFound: "Salle non trouvée ou déjà lancée",
+    roomFull: "La salle est pleine (max 3)",
+    copyCode: "Copier le Code",
+    copied: "Copié !",
   },
   de: {
     selectLanguage: "Sprache wählen",
@@ -331,6 +385,19 @@ const TRANSLATIONS = {
     close: "Schließen",
     unlockBtn: "Entsperren",
     noConsonantsWarning: "⚠️ Keine Konsonanten übrig! Kaufe Vokal oder löse auf.",
+    online: "🌐 Online",
+    createRoom: "Raum Erstellen",
+    joinRoom: "Raum Beitreten",
+    roomCode: "Raumcode",
+    enterRoomCode: "Code eingeben...",
+    connect: "Verbinden",
+    waitingHost: "Warten auf Host...",
+    waitingPlayers: "Warten auf Spieler...",
+    leaveRoom: "Raum verlassen",
+    roomNotFound: "Raum nicht gefunden oder bereits gestartet",
+    roomFull: "Raum ist voll (max. 3)",
+    copyCode: "Code Kopieren",
+    copied: "Kopiert!",
   }
 };
 
@@ -381,6 +448,10 @@ interface GameState {
   targetWedgeIndex: number | null;
   botDeclaration: { type: 'spin' | 'letter' | 'solve' | 'jolly'; value?: string; action: any } | null;
   wheelValues: SpinResult[];
+  isOnline: boolean;
+  roomCode: string | null;
+  myPlayerId: string;
+  hostId: string | null;
 }
 
 // ─── PHRASES ─────────────────────────────────────────────────────────────────
@@ -725,14 +796,32 @@ type GameAction =
   | { type: 'FORCE_RESOLVE_ROUND' }
   | { type: 'FORCE_REROLL_PHRASE' }
   | { type: 'FORCE_SET_SPIN' }
-  | { type: 'RESTART_ROUND' };
+  | { type: 'RESTART_ROUND' }
+  | { type: 'SYNC_STATE'; payload: any }
+  | { type: 'SET_ONLINE_INFO'; payload: { isOnline: boolean; roomCode: string | null; myPlayerId: string; hostId: string | null } };
+
+const getMyPlayerId = (): string => {
+  let id = sessionStorage.getItem('gira_player_id');
+  if (!id) {
+    id = 'p_' + Math.random().toString(36).substring(2, 11);
+    sessionStorage.setItem('gira_player_id', id);
+  }
+  return id;
+};
+
+const getStoredPlayerName = (): string => {
+  return localStorage.getItem('gira_player_name') || 'Tu';
+};
 
 const makeHuman = (id: string, name: string): Player => ({ id, name, type: 'human', score: 0, totalScore: 0, hasJolly: false });
 const makeBot   = (id: string, name: string): Player => ({ id, name, type: 'bot',   score: 0, totalScore: 0, hasJolly: false });
 
+const myId = getMyPlayerId();
+const myStoredName = getStoredPlayerName();
+
 const initialState: GameState = {
   status: 'language_select', mode: '1_round', language: 'it', difficulty: 'easy',
-  players: [makeHuman('player_user', 'Tu'), makeBot('bot_1', '🤖 Bot Alfa'), makeBot('bot_2', '🤖 Bot Beta')],
+  players: [makeHuman(myId, myStoredName), makeBot('bot_1', '🤖 Bot Alfa'), makeBot('bot_2', '🤖 Bot Beta')],
   currentPlayerIndex: 0, currentRound: 1, maxRounds: 1,
   currentPhrase: null, guessedConsonants: [], guessedVowels: [],
   spinResult: null, turnState: 'waiting_spin', winnerId: null,
@@ -740,6 +829,10 @@ const initialState: GameState = {
   usedPhraseIds: [], targetWedgeIndex: null,
   botDeclaration: null,
   wheelValues: [...WEDGE_VALUES],
+  isOnline: false,
+  roomCode: null,
+  myPlayerId: myId,
+  hostId: null,
 };
 
 const nextPlayer = (state: GameState): GameState => {
@@ -826,7 +919,24 @@ const gameReducer = (rawState: GameState, action: GameAction): GameState => {
 
     case 'UPDATE_PLAYER_NAME': {
       const players = state.players.map(p => p.id === action.payload.id ? { ...p, name: action.payload.name } : p);
+      if (action.payload.id === state.myPlayerId) {
+        localStorage.setItem('gira_player_name', action.payload.name);
+      }
       return { ...state, players };
+    }
+
+    case 'SYNC_STATE': {
+      return { ...action.payload, myPlayerId: state.myPlayerId };
+    }
+
+    case 'SET_ONLINE_INFO': {
+      return {
+        ...state,
+        isOnline: action.payload.isOnline,
+        roomCode: action.payload.roomCode,
+        myPlayerId: action.payload.myPlayerId,
+        hostId: action.payload.hostId,
+      };
     }
 
     case 'START_GAME': {
@@ -1649,10 +1759,13 @@ const LanguageSelect = () => {
 
 const Lobby = () => {
   const { state, dispatch } = useGame();
-  const [mode, setMode] = useState<GameMode>('1_round');
-  const [difficulty, setDifficulty] = useState<Difficulty>('easy');
-  const [playerMode, setPlayerMode] = useState<'bots' | 'friends'>('bots');
+  const [localMode, setLocalMode] = useState<GameMode>('1_round');
+  const [localDifficulty, setLocalDifficulty] = useState<Difficulty>('easy');
+  const [playerMode, setPlayerMode] = useState<'bots' | 'friends' | 'online'>('bots');
   const [friendNames, setFriendNames] = useState(['', '']);
+  const [roomCodeInput, setRoomCodeInput] = useState('');
+  const [onlineError, setOnlineError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const language = state.language;
   const t = TRANSLATIONS[language];
@@ -1663,7 +1776,9 @@ const Lobby = () => {
                   : language === 'fr' ? 'Le jeu des lettres'
                   : 'Das Buchstabenspiel';
 
-  const humanName = state.players.find(p => p.type === 'human')?.name ?? '';
+  const humanName = state.players.find(p => p.id === state.myPlayerId)?.name ?? '';
+  const mode = state.isOnline ? state.mode : localMode;
+  const difficulty = state.isOnline ? state.difficulty : localDifficulty;
 
   const tabBtn = (active: boolean): React.CSSProperties => ({
     flex: 1, padding: '10px 8px',
@@ -1678,23 +1793,201 @@ const Lobby = () => {
     transition: 'all 0.2s',
   });
 
-  const handleStart = () => {
-    let players: Player[];
-    if (playerMode === 'bots') {
-      players = [
-        makeHuman('player_user', humanName || t.you),
-        makeBot('bot_1', '🤖 Bot Alfa'),
-        makeBot('bot_2', '🤖 Bot Beta'),
-      ];
-    } else {
-      players = [
-        makeHuman('player_user', humanName || t.you),
-        makeHuman('player_2', friendNames[0].trim() || t.playerXName(2)),
-        makeHuman('player_3', friendNames[1].trim() || t.playerXName(3)),
-      ];
+  const generateRoomCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 5; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    dispatch({ type: 'SET_PLAYERS', payload: players });
-    setTimeout(() => dispatch({ type: 'START_GAME', payload: { mode, language, difficulty } }), 0);
+    return code;
+  };
+
+  const handleCreateRoom = async () => {
+    const code = generateRoomCode();
+    const myId = state.myPlayerId;
+    const name = humanName || t.you;
+    const initialPlayers = [makeHuman(myId, name)];
+    
+    const newLobbyState: GameState = {
+      status: 'lobby',
+      mode: localMode,
+      difficulty: localDifficulty,
+      language: state.language,
+      players: initialPlayers,
+      currentPlayerIndex: 0,
+      currentRound: 1,
+      maxRounds: localMode === '1_round' ? 1 : localMode === 'half_game' ? 3 : 5,
+      currentPhrase: null,
+      guessedConsonants: [],
+      guessedVowels: [],
+      spinResult: null,
+      turnState: 'waiting_spin',
+      winnerId: null,
+      lastMessage: 'Stanza creata! In attesa di altri giocatori...',
+      usedPhraseIds: [],
+      targetWedgeIndex: null,
+      botDeclaration: null,
+      wheelValues: [...WEDGE_VALUES],
+      isOnline: true,
+      roomCode: code,
+      myPlayerId: myId,
+      hostId: myId,
+    };
+
+    try {
+      await set(ref(db, `rooms/${code}/state`), newLobbyState);
+      dispatch({
+        type: 'SET_ONLINE_INFO',
+        payload: { isOnline: true, roomCode: code, myPlayerId: myId, hostId: myId }
+      });
+    } catch (err) {
+      console.error("Error creating room:", err);
+      setOnlineError("Errore durante la creazione della stanza.");
+    }
+  };
+
+  const handleJoinRoom = async () => {
+    const code = roomCodeInput.trim().toUpperCase();
+    if (!code) return;
+    setOnlineError(null);
+    
+    try {
+      const snapshot = await get(ref(db, `rooms/${code}/state`));
+      if (!snapshot.exists()) {
+        setOnlineError(t.roomNotFound);
+        return;
+      }
+      const remoteState = snapshot.val();
+      if (remoteState.status !== 'lobby') {
+        setOnlineError(t.roomNotFound);
+        return;
+      }
+      const playersList = remoteState.players || [];
+      if (playersList.length >= 3) {
+        setOnlineError(t.roomFull);
+        return;
+      }
+      
+      const myId = state.myPlayerId;
+      const name = humanName || t.you;
+      
+      const updatedPlayers = [...playersList, makeHuman(myId, name)];
+      
+      await set(ref(db, `rooms/${code}/state/players`), updatedPlayers);
+      
+      dispatch({
+        type: 'SET_ONLINE_INFO',
+        payload: { isOnline: true, roomCode: code, myPlayerId: myId, hostId: remoteState.hostId }
+      });
+    } catch (err) {
+      console.error("Error joining room:", err);
+      setOnlineError("Errore di connessione.");
+    }
+  };
+
+  const handleLeaveRoom = async () => {
+    if (!state.roomCode) return;
+    const code = state.roomCode;
+    
+    dispatch({
+      type: 'SET_ONLINE_INFO',
+      payload: { isOnline: false, roomCode: null, myPlayerId: state.myPlayerId, hostId: null }
+    });
+
+    try {
+      if (state.myPlayerId === state.hostId) {
+        await remove(ref(db, `rooms/${code}`));
+      } else {
+        const updatedPlayers = state.players.filter(p => p.id !== state.myPlayerId);
+        await set(ref(db, `rooms/${code}/state/players`), updatedPlayers);
+      }
+    } catch (err) {
+      console.error("Error leaving room:", err);
+    }
+  };
+
+  const handleModeChange = (newMode: GameMode) => {
+    if (state.isOnline && state.roomCode) {
+      set(ref(db, `rooms/${state.roomCode}/state/mode`), newMode);
+      set(ref(db, `rooms/${state.roomCode}/state/maxRounds`), newMode === '1_round' ? 1 : newMode === 'half_game' ? 3 : 5);
+    } else {
+      setLocalMode(newMode);
+    }
+  };
+
+  const handleDifficultyChange = (newDiff: Difficulty) => {
+    if (state.isOnline && state.roomCode) {
+      set(ref(db, `rooms/${state.roomCode}/state/difficulty`), newDiff);
+    } else {
+      setLocalDifficulty(newDiff);
+    }
+  };
+
+  const handleStart = async () => {
+    if (state.isOnline) {
+      if (state.myPlayerId !== state.hostId || !state.roomCode) return;
+      
+      let players = [...state.players];
+      if (players.length < 3) {
+        if (players.length === 1) {
+          players.push(makeBot('bot_1', '🤖 Bot Alfa'));
+          players.push(makeBot('bot_2', '🤖 Bot Beta'));
+        } else if (players.length === 2) {
+          players.push(makeBot('bot_1', '🤖 Bot Alfa'));
+        }
+      }
+
+      const phrase = getRandomPhrase(state.language, state.difficulty, []);
+      const maxRounds = state.mode === '1_round' ? 1 : state.mode === 'half_game' ? 3 : 5;
+      
+      let startMsg = '';
+      switch (state.language) {
+        case 'it': startMsg = '🎬 Inizia il gioco! In bocca al lupo!'; break;
+        case 'en': startMsg = '🎬 Game starts! Good luck!'; break;
+        case 'es': startMsg = '🎬 ¡Empieza el juego! ¡Buena suerte!'; break;
+        case 'fr': startMsg = '🎬 Le jeu commence ! Bonne chance !'; break;
+        case 'de': startMsg = '🎬 Das Spiel beginnt! Viel Glück!'; break;
+      }
+
+      const newPlayingState: GameState = {
+        ...state,
+        status: 'playing',
+        players: players.map(p => ({ ...p, score: 0, totalScore: 0, hasJolly: false })),
+        currentRound: 1,
+        maxRounds,
+        currentPhrase: phrase,
+        guessedConsonants: [],
+        guessedVowels: [],
+        currentPlayerIndex: 0,
+        turnState: 'waiting_spin',
+        spinResult: null,
+        winnerId: null,
+        lastMessage: startMsg,
+        usedPhraseIds: [phrase.id],
+        targetWedgeIndex: null,
+        botDeclaration: null,
+        wheelValues: [...WEDGE_VALUES],
+      };
+
+      await set(ref(db, `rooms/${state.roomCode}/state`), newPlayingState);
+    } else {
+      let players: Player[];
+      if (playerMode === 'bots') {
+        players = [
+          makeHuman(state.myPlayerId, humanName || t.you),
+          makeBot('bot_1', '🤖 Bot Alfa'),
+          makeBot('bot_2', '🤖 Bot Beta'),
+        ];
+      } else {
+        players = [
+          makeHuman(state.myPlayerId, humanName || t.you),
+          makeHuman('player_2', friendNames[0].trim() || t.playerXName(2)),
+          makeHuman('player_3', friendNames[1].trim() || t.playerXName(3)),
+        ];
+      }
+      dispatch({ type: 'SET_PLAYERS', payload: players });
+      setTimeout(() => dispatch({ type: 'START_GAME', payload: { mode: localMode, language, difficulty: localDifficulty } }), 0);
+    }
   };
 
   return (
@@ -1707,7 +2000,6 @@ const Lobby = () => {
 
         {/* ── Header ── */}
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
-          {/* Electric glow badge */}
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: EA.primaryDim, border: `1px solid ${EA.primary}55`, borderRadius: EA.full, padding: '5px 16px', marginBottom: 20 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: EA.primary, display: 'inline-block', boxShadow: `0 0 8px ${EA.primary}` }} />
             <span style={{ fontFamily: EA.fLabel, fontWeight: 600, fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#60A5FA' }}>{gameTitle}</span>
@@ -1773,36 +2065,46 @@ const Lobby = () => {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, paddingBottom: 12, borderBottom: `1px solid ${EA.outline}` }}>
                 <h2 style={{ margin: 0, fontFamily: EA.fHead, fontWeight: 800, fontSize: 16, color: EA.onBg }}>{t.players}</h2>
-                <span style={{ fontFamily: EA.fLabel, fontSize: 10, letterSpacing: 2, color: EA.onMuted, textTransform: 'uppercase' }}>3 / 3</span>
+                <span style={{ fontFamily: EA.fLabel, fontSize: 10, letterSpacing: 2, color: EA.onMuted, textTransform: 'uppercase' }}>
+                  {state.isOnline ? `${state.players.length} / 3` : '3 / 3'}
+                </span>
               </div>
 
               {/* Opponent toggle */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-                <button style={tabBtn(playerMode === 'bots')} onClick={() => setPlayerMode('bots')}>{t.vsBots}</button>
-                <button style={tabBtn(playerMode === 'friends')} onClick={() => setPlayerMode('friends')}>{t.withFriends}</button>
-              </div>
+              {!state.isOnline && (
+                <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                  <button style={tabBtn(playerMode === 'bots')} onClick={() => setPlayerMode('bots')}>{t.vsBots}</button>
+                  <button style={tabBtn(playerMode === 'friends')} onClick={() => setPlayerMode('friends')}>{t.withFriends}</button>
+                  <button style={tabBtn(playerMode === 'online')} onClick={() => setPlayerMode('online')}>{t.online}</button>
+                </div>
+              )}
 
-              {/* Your name */}
-              <div style={{ marginBottom: 16 }}>
-                <label style={labelTxt}>{t.yourName}</label>
-                <input
-                  value={humanName}
-                  onChange={e => dispatch({ type: 'UPDATE_PLAYER_NAME', payload: { id: 'player_user', name: e.target.value } })}
-                  placeholder={`${t.yourName}...`} maxLength={15}
-                  style={inputStyle}
-                  onFocus={e => (e.target.style.borderColor = EA.primary)}
-                  onBlur={e => (e.target.style.borderColor = EA.outline2)}
-                />
-              </div>
+              {/* Your name (when not in online room) */}
+              {!state.isOnline && (
+                <div style={{ marginBottom: 16 }}>
+                  <label style={labelTxt}>{t.yourName}</label>
+                  <input
+                    value={humanName}
+                    onChange={e => dispatch({ type: 'UPDATE_PLAYER_NAME', payload: { id: state.myPlayerId, name: e.target.value } })}
+                    placeholder={`${t.yourName}...`} maxLength={15}
+                    style={inputStyle}
+                    onFocus={e => (e.target.style.borderColor = EA.primary)}
+                    onBlur={e => (e.target.style.borderColor = EA.outline2)}
+                  />
+                </div>
+              )}
 
-              {/* Bot info or friend inputs */}
-              {playerMode === 'bots' ? (
+              {/* Off-line Bot panel */}
+              {!state.isOnline && playerMode === 'bots' && (
                 <div style={{ ...card({ padding: '14px 16px', background: EA.surface2 }), marginTop: 4 }}>
                   <p style={{ margin: 0, fontFamily: EA.fBody, fontSize: 13, color: EA.onMuted, lineHeight: 1.7 }}>
                     {t.botDisclaimer}
                   </p>
                 </div>
-              ) : (
+              )}
+
+              {/* Off-line Friends inputs */}
+              {!state.isOnline && playerMode === 'friends' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {[0, 1].map(i => (
                     <div key={i}>
@@ -1822,6 +2124,131 @@ const Lobby = () => {
                   </p>
                 </div>
               )}
+
+              {/* Online Multiplayer Lobby Setup */}
+              {!state.isOnline && playerMode === 'online' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
+                  <button
+                    onClick={handleCreateRoom}
+                    style={{
+                      ...primaryBtn,
+                      padding: '12px 0',
+                      fontSize: 14,
+                      boxShadow: `0 4px 14px ${EA.primary}33`,
+                    }}
+                  >
+                    {t.createRoom}
+                  </button>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                    <input
+                      value={roomCodeInput}
+                      onChange={e => setRoomCodeInput(e.target.value.toUpperCase())}
+                      placeholder={t.enterRoomCode}
+                      maxLength={5}
+                      style={{ ...inputStyle, flex: 1, textAlign: 'center', letterSpacing: '0.15em', fontWeight: 700 }}
+                    />
+                    <button
+                      onClick={handleJoinRoom}
+                      style={{
+                        ...primaryBtn,
+                        background: EA.secondary,
+                        borderBottomColor: EA.secondaryHov,
+                        padding: '12px 20px',
+                        fontSize: 14,
+                        boxShadow: `0 4px 14px ${EA.secondary}33`,
+                      }}
+                    >
+                      {t.connect}
+                    </button>
+                  </div>
+
+                  {onlineError && (
+                    <p style={{ margin: 0, fontFamily: EA.fBody, fontSize: 13, color: EA.error, fontWeight: 600, textAlign: 'center' }}>
+                      {onlineError}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Online Active Waiting Lobby Room */}
+              {state.isOnline && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Room code display */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    background: EA.surface2, border: `1.5px solid ${EA.outline}`, borderRadius: EA.md, padding: '12px 16px'
+                  }}>
+                    <div>
+                      <span style={{ fontFamily: EA.fLabel, fontSize: 11, color: EA.onMuted, textTransform: 'uppercase' }}>{t.roomCode}</span>
+                      <div style={{ fontFamily: EA.fHead, fontWeight: 900, fontSize: 22, color: EA.tertiary, letterSpacing: '0.1em', marginTop: 2 }}>{state.roomCode}</div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(state.roomCode || '');
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      style={{
+                        background: 'rgba(255,255,255,0.04)', border: `1px solid ${EA.outline2}`, borderRadius: EA.sm,
+                        color: EA.onBg, padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                        fontFamily: EA.fBody, fontWeight: 700, fontSize: 12, transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                    >
+                      {copied ? <Check size={14} color={EA.success} /> : <Copy size={14} />}
+                      {copied ? t.copied : t.copyCode}
+                    </button>
+                  </div>
+
+                  {/* Player slots */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {Array.from({ length: 3 }).map((_, idx) => {
+                      const p = state.players[idx];
+                      return (
+                        <div key={idx} style={{
+                          display: 'flex', alignItems: 'center', gap: 12,
+                          background: p ? (p.id === state.myPlayerId ? EA.primaryDim : EA.surface2) : 'rgba(255,255,255,0.01)',
+                          border: `1px dashed ${p ? (p.id === state.myPlayerId ? EA.primary : EA.outline) : EA.outline}`,
+                          borderRadius: EA.md, padding: '10px 14px', height: 48
+                        }}>
+                          <Users size={16} color={p ? EA.primary : EA.onMuted} />
+                          {p ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flex: 1 }}>
+                              <span style={{ fontFamily: EA.fBody, fontWeight: 700, fontSize: 13, color: EA.onBg }}>
+                                {p.name} {p.id === state.myPlayerId ? `(${t.you})` : ''}
+                              </span>
+                              {p.id === state.hostId && (
+                                <span style={{ background: EA.tertiaryDim, border: `1px solid ${EA.tertiary}`, color: EA.tertiary, borderRadius: EA.sm, padding: '2px 6px', fontFamily: EA.fLabel, fontSize: 9, fontWeight: 700 }}>HOST</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ fontFamily: EA.fBody, fontSize: 13, color: EA.onMuted, fontStyle: 'italic' }}>
+                              {t.waitingPlayers}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Disconnect/Leave Room */}
+                  <button
+                    onClick={handleLeaveRoom}
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.1)', border: `1px solid ${EA.error}33`, borderRadius: EA.md,
+                      color: EA.error, padding: '12px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      fontFamily: EA.fBody, fontWeight: 700, fontSize: 13, transition: 'all 0.2s', marginTop: 12
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                  >
+                    <LogOut size={14} />
+                    {t.leaveRoom}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* RIGHT – Settings */}
@@ -1833,7 +2260,12 @@ const Lobby = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 18, flex: 1 }}>
                 <div>
                   <label style={labelTxt}>{t.mode}</label>
-                  <select value={mode} onChange={e => setMode(e.target.value as GameMode)} style={selectStyle}>
+                  <select
+                    value={mode}
+                    onChange={e => handleModeChange(e.target.value as GameMode)}
+                    disabled={state.isOnline && state.myPlayerId !== state.hostId}
+                    style={selectStyle}
+                  >
                     <option value="1_round" style={optionStyle}>{t.singleRound}</option>
                     <option value="half_game" style={optionStyle}>{t.halfGame}</option>
                     <option value="full_game" style={optionStyle}>{t.fullGame}</option>
@@ -1842,7 +2274,12 @@ const Lobby = () => {
 
                 <div>
                   <label style={labelTxt}>{t.difficulty}</label>
-                  <select value={difficulty} onChange={e => setDifficulty(e.target.value as Difficulty)} style={selectStyle}>
+                  <select
+                    value={difficulty}
+                    onChange={e => handleDifficultyChange(e.target.value as Difficulty)}
+                    disabled={state.isOnline && state.myPlayerId !== state.hostId}
+                    style={selectStyle}
+                  >
                     <option value="easy" style={optionStyle}>{t.easy}</option>
                     <option value="medium" style={optionStyle}>{t.medium}</option>
                     <option value="hard" style={optionStyle}>{t.hard}</option>
@@ -1850,23 +2287,34 @@ const Lobby = () => {
                 </div>
               </div>
 
-              <motion.button
-                onClick={handleStart}
-                whileTap={{ scale: 0.97, y: 2 }}
-                style={{
-                  ...primaryBtn,
-                  width: '100%',
-                  padding: '17px 0',
-                  fontSize: 16,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  borderRadius: EA.lg,
-                  marginTop: 28,
-                  boxShadow: `0 4px 20px ${EA.primary}55`,
-                }}
-              >
-                {t.playNow}
-              </motion.button>
+              {/* Action Button: Play Now or Waiting Host */}
+              {state.isOnline && state.myPlayerId !== state.hostId ? (
+                <div style={{
+                  background: EA.surface2, border: `1.5px solid ${EA.outline}`, borderRadius: EA.lg,
+                  padding: '17px 0', fontSize: 14, fontFamily: EA.fHead, fontWeight: 700, color: EA.onMuted,
+                  textAlign: 'center', marginTop: 28, textTransform: 'uppercase', letterSpacing: '0.08em'
+                }}>
+                  {t.waitingHost}
+                </div>
+              ) : (
+                <motion.button
+                  onClick={handleStart}
+                  whileTap={{ scale: 0.97, y: 2 }}
+                  style={{
+                    ...primaryBtn,
+                    width: '100%',
+                    padding: '17px 0',
+                    fontSize: 16,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    borderRadius: EA.lg,
+                    marginTop: 28,
+                    boxShadow: `0 4px 20px ${EA.primary}55`,
+                  }}
+                >
+                  {t.playNow}
+                </motion.button>
+              )}
             </div>
           </div>
         </div>
@@ -1887,7 +2335,8 @@ const GameScreen = ({ wheelRotation, isSpinning }: { wheelRotation: number; isSp
   const t = TRANSLATIONS[state.language];
 
   const cur = state.players[state.currentPlayerIndex];
-  const isHuman = cur?.type === 'human';
+  const isHumanTurn = cur?.type === 'human';
+  const isMyTurn = state.isOnline ? cur?.id === state.myPlayerId : cur?.type === 'human';
   const canBuyVowel = (cur?.score ?? 0) >= 500;
   const revealed = [...state.guessedConsonants, ...state.guessedVowels];
 
@@ -1907,13 +2356,15 @@ const GameScreen = ({ wheelRotation, isSpinning }: { wheelRotation: number; isSp
   }, [state.currentPlayerIndex, state.turnState, solveModal]);
 
   useEffect(() => {
-    if (state.status !== 'playing' || !isHuman || isSpinning) return;
+    if (state.status !== 'playing' || !isHumanTurn || isSpinning) return;
 
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          dispatch({ type: 'TIMEOUT_PASS' });
+          if (isMyTurn) {
+            dispatch({ type: 'TIMEOUT_PASS' });
+          }
           return 0;
         }
         return prev - 1;
@@ -1921,7 +2372,7 @@ const GameScreen = ({ wheelRotation, isSpinning }: { wheelRotation: number; isSp
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [state.status, isHuman, isSpinning, state.currentPlayerIndex, state.turnState, solveModal, dispatch]);
+  }, [state.status, isHumanTurn, isSpinning, state.currentPlayerIndex, state.turnState, solveModal, dispatch, isMyTurn]);
 
   return (
     <div style={{
@@ -1950,7 +2401,7 @@ const GameScreen = ({ wheelRotation, isSpinning }: { wheelRotation: number; isSp
           {state.lastMessage}
         </motion.span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {isHuman && (state.turnState === 'waiting_spin' || state.turnState === 'waiting_letter' || state.turnState === 'jolly_choice') && !isSpinning && (
+          {isMyTurn && (state.turnState === 'waiting_spin' || state.turnState === 'waiting_letter' || state.turnState === 'jolly_choice') && !isSpinning && (
             <motion.span
               animate={timeLeft <= 5 ? { scale: [1, 1.05, 1], opacity: [1, 0.6, 1] } : {}}
               transition={{ duration: 0.5, repeat: Infinity }}
@@ -2065,7 +2516,7 @@ const GameScreen = ({ wheelRotation, isSpinning }: { wheelRotation: number; isSp
           <WheelSVG rotation={wheelRotation} size={270} language={state.language} wheelValues={state.wheelValues} />
 
           {/* Jolly choice */}
-          {state.turnState === 'jolly_choice' && isHuman && (
+          {state.turnState === 'jolly_choice' && isMyTurn && (
             <motion.div
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
               style={{ ...card({ padding: '16px 20px', border: `1.5px solid ${EA.success}55`, background: 'rgba(22,163,74,0.08)' }), width: '100%', textAlign: 'center' }}
@@ -2105,17 +2556,17 @@ const GameScreen = ({ wheelRotation, isSpinning }: { wheelRotation: number; isSp
 
           {state.turnState === 'waiting_spin' && (
             <div style={{ display: 'flex', gap: 10, width: '100%' }}>
-              <button onClick={() => isHuman && hasCons && dispatch({ type: 'SPIN_WHEEL' })} disabled={!isHuman || !hasCons}
+              <button onClick={() => isMyTurn && hasCons && dispatch({ type: 'SPIN_WHEEL' })} disabled={!isMyTurn || !hasCons}
                 style={{
                   ...primaryBtn,
                   flex: 1, padding: '13px 0', fontSize: 14,
-                  opacity: (isHuman && hasCons) ? 1 : 0.4,
-                  cursor: (isHuman && hasCons) ? 'pointer' : 'not-allowed',
-                  boxShadow: (isHuman && hasCons) ? `0 4px 16px ${EA.primary}55` : 'none',
+                  opacity: (isMyTurn && hasCons) ? 1 : 0.4,
+                  cursor: (isMyTurn && hasCons) ? 'pointer' : 'not-allowed',
+                  boxShadow: (isMyTurn && hasCons) ? `0 4px 16px ${EA.primary}55` : 'none',
                 }}>
                 {t.spin}
               </button>
-              <button onClick={() => isHuman && setSolveModal(true)} disabled={!isHuman}
+              <button onClick={() => isMyTurn && setSolveModal(true)} disabled={!isMyTurn}
                 style={{
                   flex: 1, padding: '13px 0', fontSize: 14,
                   border: 'none',
@@ -2125,9 +2576,9 @@ const GameScreen = ({ wheelRotation, isSpinning }: { wheelRotation: number; isSp
                   color: '#fff',
                   fontFamily: EA.fHead,
                   fontWeight: 700,
-                  cursor: isHuman ? 'pointer' : 'not-allowed',
-                  opacity: isHuman ? 1 : 0.4,
-                  boxShadow: isHuman ? `0 4px 16px ${EA.secondary}55` : 'none',
+                  cursor: isMyTurn ? 'pointer' : 'not-allowed',
+                  opacity: isMyTurn ? 1 : 0.4,
+                  boxShadow: isMyTurn ? `0 4px 16px ${EA.secondary}55` : 'none',
                 }}>
                 {t.solve}
               </button>
@@ -2140,10 +2591,16 @@ const GameScreen = ({ wheelRotation, isSpinning }: { wheelRotation: number; isSp
             </div>
           )}
 
-          {!isHuman && (state.turnState === 'waiting_spin' || state.turnState === 'waiting_letter') && (
+          {!isMyTurn && (state.turnState === 'waiting_spin' || state.turnState === 'waiting_letter') && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: EA.fBody, fontSize: 13, color: '#A78BFA', fontWeight: 600 }}>
               <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1, repeat: Infinity }}>⏳</motion.span>
-              {t.thinking(cur?.name ?? '')}
+              {cur?.type === 'bot' 
+                ? t.thinking(cur?.name ?? '') 
+                : (state.language === 'it' ? `In attesa del turno di ${cur?.name}...`
+                  : state.language === 'en' ? `Waiting for ${cur?.name}'s turn...`
+                  : state.language === 'es' ? `Esperando el turno de ${cur?.name}...`
+                  : state.language === 'fr' ? `En attente du tour de ${cur?.name}...`
+                  : `Warten auf den Zug von ${cur?.name}...`)}
             </div>
           )}
         </div>
@@ -2152,9 +2609,9 @@ const GameScreen = ({ wheelRotation, isSpinning }: { wheelRotation: number; isSp
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {(state.turnState === 'waiting_letter' || state.turnState === 'waiting_spin') && (
             <KeyboardPanel
-              disabled={!isHuman || state.turnState !== 'waiting_letter'}
+              disabled={!isMyTurn || state.turnState !== 'waiting_letter'}
               canBuyVowel={canBuyVowel}
-              onLetter={(l, v) => { if (isHuman) dispatch(v ? { type: 'BUY_VOWEL', payload: l } : { type: 'GUESS_CONSONANT', payload: l }); }}
+              onLetter={(l, v) => { if (isMyTurn) dispatch(v ? { type: 'BUY_VOWEL', payload: l } : { type: 'GUESS_CONSONANT', payload: l }); }}
             />
           )}
         </div>
@@ -2440,15 +2897,74 @@ const GameScreen = ({ wheelRotation, isSpinning }: { wheelRotation: number; isSp
 
 const SimpleGameProvider = ({ children }: { children: React.ReactNode }) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
+  const isSyncingRef = useRef(false);
 
+  // Sync state FROM Firebase
+  useEffect(() => {
+    if (!state.isOnline || !state.roomCode) return;
+
+    const roomRef = ref(db, `rooms/${state.roomCode}/state`);
+    const unsubscribe = onValue(roomRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        isSyncingRef.current = true;
+        dispatch({ type: 'SYNC_STATE', payload: data });
+        // After dispatching locally, reset the sync ref
+        setTimeout(() => {
+          isSyncingRef.current = false;
+        }, 50);
+      } else {
+        // Room deleted by Host or connection lost
+        dispatch({
+          type: 'SET_ONLINE_INFO',
+          payload: { isOnline: false, roomCode: null, myPlayerId: state.myPlayerId, hostId: null }
+        });
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [state.isOnline, state.roomCode, state.myPlayerId]);
+
+  // Wrapped dispatch to sync TO Firebase
+  const safeDispatch = (action: GameAction) => {
+    if (action.type === 'SYNC_STATE') {
+      dispatch(action);
+      return;
+    }
+
+    if (action.type === 'SET_ONLINE_INFO') {
+      dispatch(action);
+      return;
+    }
+
+    // Run reducer locally to get the next state
+    const nextState = gameReducer(state, action);
+
+    if (state.isOnline && state.roomCode && !isSyncingRef.current) {
+      // Write to Firebase, clearing myPlayerId for other clients
+      set(ref(db, `rooms/${state.roomCode}/state`), {
+        ...nextState,
+        myPlayerId: ''
+      });
+    } else {
+      dispatch(action);
+    }
+  };
+
+  // Bot logic: only the host processes bot actions when online
   useEffect(() => {
     const cur = state.players[state.currentPlayerIndex];
     if (!cur || cur.type !== 'bot' || state.status !== 'playing') return;
 
+    // Only host runs bot actions
+    if (state.isOnline && state.hostId !== state.myPlayerId) return;
+
     if (state.botDeclaration) {
       const delay = state.botDeclaration.type === 'letter' ? 1800 : 1500;
       const t = setTimeout(() => {
-        dispatch(state.botDeclaration!.action);
+        safeDispatch(state.botDeclaration!.action);
       }, delay);
       return () => clearTimeout(t);
     }
@@ -2473,16 +2989,16 @@ const SimpleGameProvider = ({ children }: { children: React.ReactNode }) => {
 
     const delayBeforeDecl = state.difficulty === 'hard' ? 400 : state.difficulty === 'medium' ? 800 : 1200;
     const t = setTimeout(() => {
-      dispatch({
+      safeDispatch({
         type: 'DECLARE_BOT_ACTION',
         payload: { type, value, action }
       });
     }, delayBeforeDecl);
 
     return () => clearTimeout(t);
-  }, [state.currentPlayerIndex, state.turnState, state.status, state.difficulty, state.spinResult, state.botDeclaration]);
+  }, [state.currentPlayerIndex, state.turnState, state.status, state.difficulty, state.spinResult, state.botDeclaration, state.isOnline, state.hostId, state.myPlayerId]);
 
-  return <GameContext.Provider value={{ state, dispatch }}>{children}</GameContext.Provider>;
+  return <GameContext.Provider value={{ state, dispatch: safeDispatch }}>{children}</GameContext.Provider>;
 };
 
 const WheelController = ({ setWheelRotation, setIsSpinning }: {
@@ -2491,6 +3007,11 @@ const WheelController = ({ setWheelRotation, setIsSpinning }: {
 }) => {
   const { state, dispatch } = useGame();
   const processedWedgeRef = React.useRef<number | null>(null);
+  const stateRef = React.useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     if (state.targetWedgeIndex === null) {
@@ -2516,7 +3037,17 @@ const WheelController = ({ setWheelRotation, setIsSpinning }: {
 
     const t = setTimeout(() => {
       setIsSpinning(false);
-      dispatch({ type: 'WHEEL_STOPPED' });
+      
+      const latestState = stateRef.current;
+      const isOnline = latestState.isOnline;
+      const curPlayer = latestState.players[latestState.currentPlayerIndex];
+      const isMyTurn = curPlayer?.id === latestState.myPlayerId;
+      const isBotTurn = curPlayer?.type === 'bot';
+      const isHost = latestState.hostId === latestState.myPlayerId;
+
+      if (!isOnline || isMyTurn || (isBotTurn && isHost)) {
+        dispatch({ type: 'WHEEL_STOPPED' });
+      }
     }, 4700);
 
     return () => clearTimeout(t);
