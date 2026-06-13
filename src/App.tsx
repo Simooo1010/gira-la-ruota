@@ -1803,6 +1803,7 @@ const Lobby = () => {
   };
 
   const handleCreateRoom = async () => {
+    if (!db) return;
     const code = generateRoomCode();
     const myId = state.myPlayerId;
     const name = humanName || t.you;
@@ -1847,6 +1848,7 @@ const Lobby = () => {
   };
 
   const handleJoinRoom = async () => {
+    if (!db) return;
     const code = roomCodeInput.trim().toUpperCase();
     if (!code) return;
     setOnlineError(null);
@@ -1894,6 +1896,7 @@ const Lobby = () => {
       payload: { isOnline: false, roomCode: null, myPlayerId: state.myPlayerId, hostId: null }
     });
 
+    if (!db) return;
     try {
       if (state.myPlayerId === state.hostId) {
         await remove(ref(db, `rooms/${code}`));
@@ -1907,7 +1910,7 @@ const Lobby = () => {
   };
 
   const handleModeChange = (newMode: GameMode) => {
-    if (state.isOnline && state.roomCode) {
+    if (db && state.isOnline && state.roomCode) {
       set(ref(db, `rooms/${state.roomCode}/state/mode`), newMode);
       set(ref(db, `rooms/${state.roomCode}/state/maxRounds`), newMode === '1_round' ? 1 : newMode === 'half_game' ? 3 : 5);
     } else {
@@ -1916,7 +1919,7 @@ const Lobby = () => {
   };
 
   const handleDifficultyChange = (newDiff: Difficulty) => {
-    if (state.isOnline && state.roomCode) {
+    if (db && state.isOnline && state.roomCode) {
       set(ref(db, `rooms/${state.roomCode}/state/difficulty`), newDiff);
     } else {
       setLocalDifficulty(newDiff);
@@ -1925,7 +1928,7 @@ const Lobby = () => {
 
   const handleStart = async () => {
     if (state.isOnline) {
-      if (state.myPlayerId !== state.hostId || !state.roomCode) return;
+      if (!db || state.myPlayerId !== state.hostId || !state.roomCode) return;
       
       let players = [...state.players];
       if (players.length < 3) {
@@ -2127,48 +2130,58 @@ const Lobby = () => {
 
               {/* Online Multiplayer Lobby Setup */}
               {!state.isOnline && playerMode === 'online' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
-                  <button
-                    onClick={handleCreateRoom}
-                    style={{
-                      ...primaryBtn,
-                      padding: '12px 0',
-                      fontSize: 14,
-                      boxShadow: `0 4px 14px ${EA.primary}33`,
-                    }}
-                  >
-                    {t.createRoom}
-                  </button>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
-                    <input
-                      value={roomCodeInput}
-                      onChange={e => setRoomCodeInput(e.target.value.toUpperCase())}
-                      placeholder={t.enterRoomCode}
-                      maxLength={5}
-                      style={{ ...inputStyle, flex: 1, textAlign: 'center', letterSpacing: '0.15em', fontWeight: 700 }}
-                    />
+                db ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
                     <button
-                      onClick={handleJoinRoom}
+                      onClick={handleCreateRoom}
                       style={{
                         ...primaryBtn,
-                        background: EA.secondary,
-                        borderBottomColor: EA.secondaryHov,
-                        padding: '12px 20px',
+                        padding: '12px 0',
                         fontSize: 14,
-                        boxShadow: `0 4px 14px ${EA.secondary}33`,
+                        boxShadow: `0 4px 14px ${EA.primary}33`,
                       }}
                     >
-                      {t.connect}
+                      {t.createRoom}
                     </button>
-                  </div>
 
-                  {onlineError && (
-                    <p style={{ margin: 0, fontFamily: EA.fBody, fontSize: 13, color: EA.error, fontWeight: 600, textAlign: 'center' }}>
-                      {onlineError}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                      <input
+                        value={roomCodeInput}
+                        onChange={e => setRoomCodeInput(e.target.value.toUpperCase())}
+                        placeholder={t.enterRoomCode}
+                        maxLength={5}
+                        style={{ ...inputStyle, flex: 1, textAlign: 'center', letterSpacing: '0.15em', fontWeight: 700 }}
+                      />
+                      <button
+                        onClick={handleJoinRoom}
+                        style={{
+                          ...primaryBtn,
+                          background: EA.secondary,
+                          borderBottomColor: EA.secondaryHov,
+                          padding: '12px 20px',
+                          fontSize: 14,
+                          boxShadow: `0 4px 14px ${EA.secondary}33`,
+                        }}
+                      >
+                        {t.connect}
+                      </button>
+                    </div>
+
+                    {onlineError && (
+                      <p style={{ margin: 0, fontFamily: EA.fBody, fontSize: 13, color: EA.error, fontWeight: 600, textAlign: 'center' }}>
+                        {onlineError}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ ...card({ padding: '14px 16px', background: 'rgba(239, 68, 68, 0.08)', border: `1px solid ${EA.error}44` }), marginTop: 8 }}>
+                    <p style={{ margin: 0, fontFamily: EA.fBody, fontSize: 13, color: EA.error, fontWeight: 600, lineHeight: 1.6 }}>
+                      {state.language === 'it'
+                        ? "⚠️ La modalità online non è configurata. Per giocare online, inserisci i parametri del database nel file .env (in locale) o nelle impostazioni di Vercel."
+                        : "⚠️ Online mode is not configured. To play online, please set the database environment variables in your local .env file or Vercel dashboard."}
                     </p>
-                  )}
-                </div>
+                  </div>
+                )
               )}
 
               {/* Online Active Waiting Lobby Room */}
@@ -2901,7 +2914,7 @@ const SimpleGameProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Sync state FROM Firebase
   useEffect(() => {
-    if (!state.isOnline || !state.roomCode) return;
+    if (!db || !state.isOnline || !state.roomCode) return;
 
     const roomRef = ref(db, `rooms/${state.roomCode}/state`);
     const unsubscribe = onValue(roomRef, (snapshot) => {
@@ -2942,7 +2955,7 @@ const SimpleGameProvider = ({ children }: { children: React.ReactNode }) => {
     // Run reducer locally to get the next state
     const nextState = gameReducer(state, action);
 
-    if (state.isOnline && state.roomCode && !isSyncingRef.current) {
+    if (db && state.isOnline && state.roomCode && !isSyncingRef.current) {
       // Write to Firebase, clearing myPlayerId for other clients
       set(ref(db, `rooms/${state.roomCode}/state`), {
         ...nextState,

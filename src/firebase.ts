@@ -1,7 +1,6 @@
-import { initializeApp } from "firebase/app";
-import { getDatabase } from "firebase/database";
+import { initializeApp, getApp, getApps } from "firebase/app";
+import { getDatabase, Database } from "firebase/database";
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -12,8 +11,18 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+let db: Database | null = null;
 
-// Initialize Realtime Database and get a reference to the service
-export const db = getDatabase(app);
+// Only initialize if API key is provided and not placeholder
+if (firebaseConfig.apiKey && firebaseConfig.apiKey.trim() !== "") {
+  try {
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    db = getDatabase(app);
+  } catch (error) {
+    console.error("Firebase failed to initialize:", error);
+  }
+} else {
+  console.warn("Firebase configuration is missing or empty. Online multiplayer is disabled.");
+}
+
+export { db };
