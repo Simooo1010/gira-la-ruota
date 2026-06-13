@@ -1,0 +1,65 @@
+/* Electric Arena – Design System */
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  --ea-primary:    #0052FF;
+  --ea-primary-hover: #0041CC;
+  --ea-primary-dark: #002B8A;
+  --ea-secondary:  #8A2BE2;
+  --ea-secondary-hover: #7020C0;
+  --ea-tertiary:   #FFD700;
+  --ea-tertiary-dark: #C9A800;
+  --ea-bg:         #121214;
+  --ea-surface:    #1A1A1E;
+  --ea-surface-2:  #222228;
+  --ea-surface-3:  #2A2A32;
+  --ea-outline:    rgba(255,255,255,0.1);
+  --ea-on-bg:      #F0F0FF;
+  --ea-on-surface: #C8C8E0;
+  --ea-on-muted:   rgba(200,200,224,0.5);
+
+  --font-headline: 'Inter', sans-serif;
+  --font-body:     'Plus Jakarta Sans', sans-serif;
+  --font-label:    'Space Grotesk', sans-serif;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+}
+
+body {
+  margin: 0;
+  background: var(--ea-bg);
+  color: var(--ea-on-bg);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--ea-bg); }
+::-webkit-scrollbar-thumb { background: var(--ea-surface-3); border-radius: 3px; }
+
+/* Input reset */
+input, select, button { font-family: inherit; }
+button { cursor: pointer; }
+
+/* Focus ring */
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--ea-primary);
+  outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+  background: var(--ea-primary);
+  color: #fff;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
