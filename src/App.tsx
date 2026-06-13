@@ -1499,30 +1499,38 @@ const optionStyle: React.CSSProperties = { background: EA.surface2, color: EA.on
 const Board = ({ phrase, revealed }: { phrase: Phrase | null; revealed: string[] }) => {
   const { state } = useGame();
   const t = TRANSLATIONS[state.language];
+
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const base: React.CSSProperties = {
-    ...card({ padding: '18px 16px', width: '100%', maxWidth: 960, margin: '0 auto', minHeight: 152 }),
+    ...card({ padding: isMobile ? '12px 10px' : '18px 16px', width: '100%', maxWidth: 960, margin: '0 auto', minHeight: isMobile ? 100 : 152 }),
     boxShadow: `0 0 0 1px ${EA.outline}, 0 4px 32px rgba(0,82,255,0.1)`,
   };
 
   if (!phrase) return (
     <div style={base}>
-      <p style={{ color: EA.onMuted, textAlign: 'center', fontSize: 22, fontWeight: 800, letterSpacing: 8, margin: 0, fontFamily: EA.fHead }}>{t.spinning.toUpperCase()}</p>
+      <p style={{ color: EA.onMuted, textAlign: 'center', fontSize: isMobile ? 16 : 22, fontWeight: 800, letterSpacing: isMobile ? 4 : 8, margin: 0, fontFamily: EA.fHead }}>{t.spinning.toUpperCase()}</p>
     </div>
   );
 
   return (
     <div style={base}>
       {/* Category badge */}
-      <div style={{ marginBottom: 14 }}>
+      <div style={{ marginBottom: isMobile ? 8 : 14 }}>
         <span style={{
           display: 'inline-block',
           background: EA.primaryDim,
           border: `1px solid ${EA.primary}55`,
           borderRadius: EA.full,
-          padding: '3px 12px',
+          padding: isMobile ? '2px 8px' : '3px 12px',
           fontFamily: EA.fLabel,
           fontWeight: 600,
-          fontSize: 10,
+          fontSize: isMobile ? 9 : 10,
           letterSpacing: '0.12em',
           textTransform: 'uppercase',
           color: '#60A5FA',
@@ -1530,9 +1538,9 @@ const Board = ({ phrase, revealed }: { phrase: Phrase | null; revealed: string[]
       </div>
 
       {/* Letter grid */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 12px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: isMobile ? '4px 6px' : '8px 12px' }}>
         {phrase.text.split(' ').map((word, wi) => (
-          <div key={wi} style={{ display: 'flex', gap: 3 }}>
+          <div key={wi} style={{ display: 'flex', gap: isMobile ? 2 : 3 }}>
             {word.split('').map((char, ci) => {
               const show = revealed.includes(char);
               return (
@@ -1542,12 +1550,12 @@ const Board = ({ phrase, revealed }: { phrase: Phrase | null; revealed: string[]
                   animate={{ rotateY: show ? 360 : 0 }}
                   transition={{ duration: 0.32 }}
                   style={{
-                    width: 36, height: 48,
+                    width: isMobile ? 24 : 36, height: isMobile ? 32 : 48,
                     background: show ? '#fff' : EA.surface2,
                     border: `1.5px solid ${show ? EA.primary : EA.outline}`,
                     borderRadius: EA.sm,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 20, fontWeight: 900,
+                    fontSize: isMobile ? 13 : 20, fontWeight: 900,
                     fontFamily: EA.fHead,
                     color: show ? EA.bg : 'transparent',
                     boxShadow: show ? `0 0 12px ${EA.primary}44` : 'none',
@@ -1574,6 +1582,13 @@ const KeyboardPanel = ({ disabled, canBuyVowel, onLetter }: {
   const { state } = useGame();
   const lang = state.language;
 
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const vowelsLabel = lang === 'it' ? 'Vocali'
                     : lang === 'en' ? 'Vowels'
                     : lang === 'es' ? 'Vocales'
@@ -1591,17 +1606,17 @@ const KeyboardPanel = ({ disabled, canBuyVowel, onLetter }: {
 
     if (isBotActiveLetter) {
       return {
-        width: isVowel ? 48 : 38,
-        height: isVowel ? 52 : 44,
+        width: isVowel ? (isMobile ? 44 : 48) : (isMobile ? 34 : 38),
+        height: isVowel ? (isMobile ? 48 : 52) : (isMobile ? 38 : 44),
         border: 'none',
         borderRadius: EA.sm,
         fontFamily: EA.fHead,
         fontWeight: 900,
-        fontSize: isVowel ? 20 : 16,
+        fontSize: isVowel ? (isMobile ? 18 : 20) : (isMobile ? 14 : 16),
         cursor: 'not-allowed',
         background: EA.tertiary,
         color: '#121214',
-        transform: 'scale(1.2)',
+        transform: 'scale(1.15)',
         boxShadow: `0 0 20px ${EA.tertiary}`,
         zIndex: 10,
         transition: 'all 0.2s',
@@ -1609,8 +1624,8 @@ const KeyboardPanel = ({ disabled, canBuyVowel, onLetter }: {
     }
 
     return {
-      width: isVowel ? 48 : 38,
-      height: isVowel ? 52 : 44,
+      width: isVowel ? (isMobile ? 38 : 48) : (isMobile ? 28 : 38),
+      height: isVowel ? (isMobile ? 42 : 52) : (isMobile ? 34 : 44),
       border: 'none',
       borderBottom: used ? 'none' : isVowel
         ? `2px solid ${EA.secondaryHov ?? '#5b1ea0'}`
@@ -1618,7 +1633,7 @@ const KeyboardPanel = ({ disabled, canBuyVowel, onLetter }: {
       borderRadius: EA.sm,
       fontFamily: EA.fHead,
       fontWeight: 800,
-      fontSize: isVowel ? 17 : 14,
+      fontSize: isVowel ? (isMobile ? 14 : 17) : (isMobile ? 12 : 14),
       cursor: used || disabled || (isVowel && !canBuyVowel) ? 'not-allowed' : 'pointer',
       opacity: used ? 0.28 : (isVowel && !canBuyVowel) ? 0.45 : 1,
       background: used
@@ -1633,9 +1648,9 @@ const KeyboardPanel = ({ disabled, canBuyVowel, onLetter }: {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', width: '100%' }}>
-      <span style={{ ...labelTxt, marginBottom: 4 }}>{vowelsLabel} — €500</span>
-      <div style={{ display: 'flex', gap: 6 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 6 : 10, alignItems: 'center', width: '100%' }}>
+      <span style={{ ...labelTxt, marginBottom: isMobile ? 2 : 4 }}>{vowelsLabel} — €500</span>
+      <div style={{ display: 'flex', gap: isMobile ? 4 : 6 }}>
         {VOWELS.map(v => (
           <button key={v} style={key(v, state.guessedVowels.includes(v), true)}
             disabled={disabled || state.guessedVowels.includes(v) || !canBuyVowel}
@@ -1643,8 +1658,8 @@ const KeyboardPanel = ({ disabled, canBuyVowel, onLetter }: {
           </button>
         ))}
       </div>
-      <span style={{ ...labelTxt, marginTop: 6, marginBottom: 4 }}>{consonantsLabel}</span>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, justifyContent: 'center', maxWidth: 340 }}>
+      <span style={{ ...labelTxt, marginTop: isMobile ? 4 : 6, marginBottom: isMobile ? 2 : 4 }}>{consonantsLabel}</span>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 4 : 5, justifyContent: 'center', maxWidth: isMobile ? 280 : 340 }}>
         {CONSONANTS.map(c => (
           <button key={c} style={key(c, state.guessedConsonants.includes(c), false)}
             disabled={disabled || state.guessedConsonants.includes(c)}
@@ -1656,17 +1671,88 @@ const KeyboardPanel = ({ disabled, canBuyVowel, onLetter }: {
   );
 };
 
+const FlagIcon = ({ code, size = 28 }: { code: Language; size?: number }) => {
+  const style: React.CSSProperties = {
+    width: size,
+    height: size,
+    borderRadius: '50%',
+    overflow: 'hidden',
+    display: 'inline-flex',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+    flexShrink: 0,
+    border: '1px solid rgba(255,255,255,0.1)'
+  };
+  
+  if (code === 'it') {
+    return (
+      <div style={style}>
+        <svg viewBox="0 0 3 2" width="100%" height="100%">
+          <rect width="1" height="2" fill="#009246"/>
+          <rect x="1" width="1" height="2" fill="#F1F2F1"/>
+          <rect x="2" width="1" height="2" fill="#CE2B37"/>
+        </svg>
+      </div>
+    );
+  }
+  if (code === 'en') {
+    return (
+      <div style={style}>
+        <svg viewBox="0 0 50 30" width="100%" height="100%">
+          <rect width="50" height="30" fill="#012169"/>
+          <path d="M0,0 L50,30 M0,30 L50,0" stroke="#fff" stroke-width="6"/>
+          <path d="M0,0 L50,30 M0,30 L50,0" stroke="#C8102E" stroke-width="4"/>
+          <path d="M25,0 L25,30 M0,15 L50,15" stroke="#fff" stroke-width="10"/>
+          <path d="M25,0 L25,30 M0,15 L50,15" stroke="#C8102E" stroke-width="6"/>
+        </svg>
+      </div>
+    );
+  }
+  if (code === 'es') {
+    return (
+      <div style={style}>
+        <svg viewBox="0 0 3 2" width="100%" height="100%">
+          <rect width="3" height="2" fill="#AA151B"/>
+          <rect y="0.5" width="3" height="1" fill="#F1BF00"/>
+        </svg>
+      </div>
+    );
+  }
+  if (code === 'fr') {
+    return (
+      <div style={style}>
+        <svg viewBox="0 0 3 2" width="100%" height="100%">
+          <rect width="1" height="2" fill="#002395"/>
+          <rect x="1" width="1" height="2" fill="#FFFFFF"/>
+          <rect x="2" width="1" height="2" fill="#ED2939"/>
+        </svg>
+      </div>
+    );
+  }
+  if (code === 'de') {
+    return (
+      <div style={style}>
+        <svg viewBox="0 0 5 3" width="100%" height="100%">
+          <rect width="5" height="1" fill="#000000"/>
+          <rect y="1" width="5" height="1" fill="#DD0000"/>
+          <rect y="2" width="5" height="1" fill="#FFCC00"/>
+        </svg>
+      </div>
+    );
+  }
+  return null;
+};
+
 // ─── LANGUAGE SELECT ──────────────────────────────────────────────────────────
 
 const LanguageSelect = () => {
   const { dispatch } = useGame();
 
-  const languages: { code: Language; name: string; flag: string }[] = [
-    { code: 'it', name: 'Italiano', flag: '🇮🇹' },
-    { code: 'en', name: 'English', flag: '🇬🇧' },
-    { code: 'es', name: 'Español', flag: '🇪🇸' },
-    { code: 'fr', name: 'Français', flag: '🇫🇷' },
-    { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+  const languages: { code: Language; name: string }[] = [
+    { code: 'it', name: 'Italiano' },
+    { code: 'en', name: 'English' },
+    { code: 'es', name: 'Español' },
+    { code: 'fr', name: 'Français' },
+    { code: 'de', name: 'Deutsch' },
   ];
 
   return (
@@ -1745,7 +1831,7 @@ const LanguageSelect = () => {
                 transition: 'all 0.2s',
               }}
             >
-              <span style={{ fontSize: 28 }}>{lang.flag}</span>
+              <FlagIcon code={lang.code} size={32} />
               <span style={{ fontFamily: EA.fBody, fontSize: 16, fontWeight: 700, color: EA.onBg }}>{lang.name}</span>
             </motion.button>
           ))}
@@ -1759,6 +1845,14 @@ const LanguageSelect = () => {
 
 const Lobby = () => {
   const { state, dispatch } = useGame();
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const [localMode, setLocalMode] = useState<GameMode>('1_round');
   const [localDifficulty, setLocalDifficulty] = useState<Difficulty>('easy');
   const [playerMode, setPlayerMode] = useState<'bots' | 'friends' | 'online'>('bots');
@@ -2059,10 +2153,10 @@ const Lobby = () => {
 
         {/* ── Card ── */}
         <div style={{
-          ...card({ padding: 36 }),
+          ...card({ padding: isMobile ? '20px 16px' : 36 }),
           boxShadow: `0 0 0 1px ${EA.outline}, 0 32px 80px rgba(0,0,0,0.6)`,
         }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 36 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 24 : 36 }}>
 
             {/* LEFT – Players */}
             <div>
@@ -2344,6 +2438,13 @@ const GameScreen = ({ wheelRotation, isSpinning }: { wheelRotation: number; isSp
   const [solveInput, setSolveInput] = useState('');
   const [timeLeft, setTimeLeft] = useState(15);
   const [showRecovery, setShowRecovery] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const t = TRANSLATIONS[state.language];
 
@@ -2398,23 +2499,63 @@ const GameScreen = ({ wheelRotation, isSpinning }: { wheelRotation: number; isSp
       {/* ── Top bar ── */}
       <div style={{
         width: '100%', maxWidth: 1000,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        ...card({ padding: '10px 20px', borderRadius: EA.md }),
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        alignItems: 'center',
+        gap: isMobile ? 8 : 12,
+        justifyContent: 'space-between',
+        ...card({ padding: isMobile ? '10px 14px' : '10px 20px', borderRadius: EA.md }),
         backdropFilter: 'blur(10px)',
       }}>
-        <span style={{ fontFamily: EA.fLabel, fontWeight: 700, fontSize: 12, letterSpacing: '0.12em', color: EA.primary, textTransform: 'uppercase' }}>
-          {t.roundXofY(state.currentRound, state.maxRounds)}
-        </span>
+        {/* Left / Top group on mobile */}
+        <div style={{ display: 'flex', width: isMobile ? '100%' : 'auto', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontFamily: EA.fLabel, fontWeight: 700, fontSize: 11, letterSpacing: '0.12em', color: EA.primary, textTransform: 'uppercase' }}>
+            {t.roundXofY(state.currentRound, state.maxRounds)}
+          </span>
+          {isMobile && isMyTurn && (state.turnState === 'waiting_spin' || state.turnState === 'waiting_letter' || state.turnState === 'jolly_choice') && !isSpinning && (
+            <motion.span
+              animate={timeLeft <= 5 ? { scale: [1, 1.05, 1], opacity: [1, 0.6, 1] } : {}}
+              transition={{ duration: 0.5, repeat: Infinity }}
+              style={{
+                fontFamily: EA.fLabel, fontSize: 11, fontWeight: 800,
+                color: timeLeft <= 5 ? EA.error : EA.tertiary,
+                background: timeLeft <= 5 ? 'rgba(239,68,68,0.15)' : 'rgba(255,215,0,0.15)',
+                border: `1px solid ${timeLeft <= 5 ? EA.error : EA.tertiary}`,
+                borderRadius: EA.sm, padding: '2px 6px',
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              ⏱️ {timeLeft}s
+            </motion.span>
+          )}
+        </div>
+
+        {/* Message */}
         <motion.span
           key={state.lastMessage}
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
-          style={{ fontFamily: EA.fBody, fontWeight: 600, fontSize: 14, color: EA.onSurface, flex: 1, textAlign: 'center', padding: '0 16px' }}
+          style={{
+            fontFamily: EA.fBody,
+            fontWeight: 600,
+            fontSize: isMobile ? 12 : 14,
+            color: EA.onSurface,
+            width: '100%',
+            textAlign: 'center',
+            padding: isMobile ? '4px 0' : '0 16px',
+            borderTop: isMobile ? `1px solid ${EA.outline}` : 'none',
+            borderBottom: isMobile ? `1px solid ${EA.outline}` : 'none',
+            paddingTop: isMobile ? 6 : 0,
+            paddingBottom: isMobile ? 6 : 0,
+            flex: isMobile ? 'none' : 1,
+          }}
         >
           {state.lastMessage}
         </motion.span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {isMyTurn && (state.turnState === 'waiting_spin' || state.turnState === 'waiting_letter' || state.turnState === 'jolly_choice') && !isSpinning && (
+
+        {/* Right / Bottom group on mobile */}
+        <div style={{ display: 'flex', width: isMobile ? '100%' : 'auto', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          {!isMobile && isMyTurn && (state.turnState === 'waiting_spin' || state.turnState === 'waiting_letter' || state.turnState === 'jolly_choice') && !isSpinning && (
             <motion.span
               animate={timeLeft <= 5 ? { scale: [1, 1.05, 1], opacity: [1, 0.6, 1] } : {}}
               transition={{ duration: 0.5, repeat: Infinity }}
@@ -2479,44 +2620,46 @@ const GameScreen = ({ wheelRotation, isSpinning }: { wheelRotation: number; isSp
             <div style={{ fontFamily: EA.fLabel, fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: EA.primary, opacity: 0.7 }}>
               {t.spinning}
             </div>
-            <WheelSVG rotation={wheelRotation} size={500} language={state.language} wheelValues={state.wheelValues} />
+            <WheelSVG rotation={wheelRotation} size={isMobile ? Math.min(320, window.innerWidth - 32) : 500} language={state.language} wheelValues={state.wheelValues} />
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* ── Main grid ── */}
-      <div style={{ width: '100%', maxWidth: 1000, display: 'grid', gridTemplateColumns: '210px 1fr 260px', gap: 14 }}>
+      <div style={{ width: '100%', maxWidth: 1000, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '210px 1fr 260px', gap: 14 }}>
 
         {/* Players */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'row' : 'column', gap: isMobile ? 8 : 10, width: '100%' }}>
           {state.players.map((p, i) => {
             const isActive = i === state.currentPlayerIndex;
             return (
               <motion.div key={p.id} animate={{ scale: isActive ? 1.02 : 1 }}
                 style={{
                   ...card({
-                    padding: '14px 16px',
+                    padding: isMobile ? '8px 10px' : '14px 16px',
                     border: `1.5px solid ${isActive ? EA.primary : EA.outline}`,
                     background: isActive ? EA.primaryDim : EA.surface,
                   }),
                   boxShadow: isActive ? `0 0 20px ${EA.primary}33` : 'none',
                   transition: 'all 0.3s',
+                  flex: isMobile ? 1 : 'none',
+                  minWidth: 0,
                 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontFamily: EA.fBody, fontWeight: 700, fontSize: 13, color: EA.onBg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>{p.name}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isMobile ? 2 : 6 }}>
+                  <span style={{ fontFamily: EA.fBody, fontWeight: 700, fontSize: isMobile ? 11 : 13, color: EA.onBg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: isMobile ? '60%' : '70%' }}>{p.name}</span>
                   {isActive && (
-                    <span style={{ background: EA.primary, color: '#fff', borderRadius: EA.full, padding: '2px 8px', fontFamily: EA.fLabel, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{t.turn}</span>
+                    <span style={{ background: EA.primary, color: '#fff', borderRadius: EA.full, padding: isMobile ? '1px 5px' : '2px 8px', fontFamily: EA.fLabel, fontSize: isMobile ? 7 : 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{t.turn}</span>
                   )}
                 </div>
-                <div style={{ fontFamily: EA.fHead, fontWeight: 900, fontSize: 22, color: EA.tertiary, letterSpacing: '-0.02em' }}>
+                <div style={{ fontFamily: EA.fHead, fontWeight: 900, fontSize: isMobile ? 16 : 22, color: EA.tertiary, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
                   €{p.score.toLocaleString()}
                 </div>
-                <div style={{ fontFamily: EA.fLabel, fontSize: 10, color: EA.onMuted, letterSpacing: '0.08em', marginTop: 2 }}>
-                  {t.totalScore} €{p.totalScore.toLocaleString()}
+                <div style={{ fontFamily: EA.fLabel, fontSize: isMobile ? 8 : 10, color: EA.onMuted, letterSpacing: '0.08em', marginTop: 2 }}>
+                  {isMobile ? `Tot: €${p.totalScore.toLocaleString()}` : `${t.totalScore} €${p.totalScore.toLocaleString()}`}
                 </div>
                 {p.hasJolly && (
-                  <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 4, background: `rgba(34,197,94,0.1)`, border: `1px solid rgba(34,197,94,0.3)`, borderRadius: EA.full, padding: '2px 10px' }}>
-                    <span style={{ fontFamily: EA.fLabel, fontSize: 9, fontWeight: 700, color: EA.success, letterSpacing: '0.1em' }}>⭐ JOLLY</span>
+                  <div style={{ marginTop: isMobile ? 4 : 8, display: 'inline-flex', alignItems: 'center', gap: 4, background: `rgba(34,197,94,0.1)`, border: `1px solid rgba(34,197,94,0.3)`, borderRadius: EA.full, padding: isMobile ? '1px 6px' : '2px 10px' }}>
+                    <span style={{ fontFamily: EA.fLabel, fontSize: isMobile ? 7 : 9, fontWeight: 700, color: EA.success, letterSpacing: '0.1em' }}>⭐ {isMobile ? 'JOL' : 'JOLLY'}</span>
                   </div>
                 )}
               </motion.div>
@@ -2526,7 +2669,7 @@ const GameScreen = ({ wheelRotation, isSpinning }: { wheelRotation: number; isSp
 
         {/* Center – Wheel + controls */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-          <WheelSVG rotation={wheelRotation} size={270} language={state.language} wheelValues={state.wheelValues} />
+          <WheelSVG rotation={wheelRotation} size={isMobile ? 180 : 270} language={state.language} wheelValues={state.wheelValues} />
 
           {/* Jolly choice */}
           {state.turnState === 'jolly_choice' && isMyTurn && (
@@ -2643,7 +2786,7 @@ const GameScreen = ({ wheelRotation, isSpinning }: { wheelRotation: number; isSp
               padding: '20px 20px 60px'
             }}>
             <motion.form onSubmit={handleSolve} initial={{ scale: 0.88, y: 20 }} animate={{ scale: 1, y: 0 }}
-              style={{ ...card({ padding: 40, border: `2px solid ${EA.primary}`, maxWidth: 520, width: '100%' }), boxShadow: `0 24px 80px rgba(0,0,0,0.9), 0 0 40px ${EA.primary}22` }}>
+              style={{ ...card({ padding: isMobile ? '24px 20px' : 40, border: `2px solid ${EA.primary}`, maxWidth: 520, width: '100%' }), boxShadow: `0 24px 80px rgba(0,0,0,0.9), 0 0 40px ${EA.primary}22` }}>
               <h2 style={{ margin: '0 0 24px', fontFamily: EA.fHead, fontWeight: 900, fontSize: 22, textAlign: 'center', letterSpacing: '-0.02em', color: EA.onBg }}>{t.solveTitle}</h2>
               <input value={solveInput} onChange={e => setSolveInput(e.target.value)} autoFocus
                 placeholder={t.writeHere}
@@ -2690,7 +2833,7 @@ const GameScreen = ({ wheelRotation, isSpinning }: { wheelRotation: number; isSp
               </p>
 
               {/* Scoreboard */}
-              <div style={{ ...card({ padding: 24, marginBottom: 32, background: EA.surface }), boxShadow: `0 0 0 1px ${EA.outline}` }}>
+              <div style={{ ...card({ padding: isMobile ? 16 : 24, marginBottom: isMobile ? 24 : 32, background: EA.surface }), boxShadow: `0 0 0 1px ${EA.outline}` }}>
                 {[...state.players].sort((a, b) => b.totalScore - a.totalScore).map((p, i) => (
                   <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 0', borderBottom: i < 2 ? `1px solid ${EA.outline}` : 'none' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
